@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Markdown Editor</title>
+    <!-- 使用 CDN 加载 Vditor -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.7/dist/index.css" />
+    <style>
+        /* CSS 变量定义主题颜色 */
+        :root {
+            --theme-bg: transparent;
+            --theme-text: #f1f5f9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: var(--theme-bg) !important;
+            overflow: auto;
+        }
+
+        #vditor {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 自定义 Vditor 深色主题 */
+        .vditor {
+            --panel-background-color: var(--theme-bg) !important;
+            --textarea-background-color: var(--theme-bg) !important;
+            border: none !important;
+            border-radius: 0 !important;
+            background: var(--theme-bg) !important;
+        }
+
+        .vditor-content {
+            background: var(--theme-bg) !important;
+        }
+
+        .vditor-ir {
+            background: var(--theme-bg) !important;
+        }
+
+        .vditor-ir .vditor-reset {
+            background: var(--theme-bg) !important;
+            color: var(--theme-text) !important;
+        }
+
+        .vditor-reset {
+            background: var(--theme-bg) !important;
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+            padding: 16px !important;
+            color: var(--theme-text) !important;
+            min-height: 100% !important;
+            cursor: text !important;
+        }
+
+        .vditor-toolbar {
+            display: none !important;
+        }
+
+        /* 图片样式 */
+        .vditor-ir img {
+            max-width: 100% !important;
+            border-radius: 8px !important;
+            margin: 8px 0 !important;
+        }
+
+        /* 隐藏滚动条但保持可滚动 */
+        .vditor-reset::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* 隐藏占位符 */
+        .vditor [data-placeholder]::before {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="vditor"></div>
+    <!-- 使用 CDN 加载 Vditor JS -->
+    <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.7/dist/index.min.js"></script>
+    <script>
+        let vditor;
+
+        // 初始化 Vditor
+        function initVditor() {
+            vditor = new Vditor('vditor', {
+                theme: 'dark',
+                mode: 'ir',
+                toolbar: [],
+                placeholder: '',
+                cache: {
+                    enable: false
+                },
+                preview: {
+                    theme: {
+                        current: 'dark'
+                    }
+                },
+                after: () => {
+                    // 通知 Swift 编辑器已准备好
+                    window.webkit?.messageHandlers?.editorReady?.postMessage('ready');
+
+                    // 自动聚焦（多次尝试确保成功）
+                    autoFocus();
+
+                    // 点击整个容器时聚焦编辑器
+                    document.getElementById('vditor').addEventListener('click', function (e) {
+                        focusEditor();
+                    });
+                },
+                input: (value) => {
+                    // 内容变化时通知 Swift
+                    window.webkit?.messageHandlers?.contentChanged?.postMessage(value);
+                }
+            });
+        }
+
+        // 聚焦编辑器并将光标移到末尾
+        function focusEditor() {
+            if (vditor) {
+                vditor.focus();
+                // 将光标移到内容末尾
+                const editorElement = document.querySelector('.vditor-ir .vditor-reset');
+                if (editorElement) {
+                    editorElement.focus();
+                    // 使用 Selection API 将光标移到末尾
+                    const range = document.createRange();
+                    const sel = window.getSelection();
+                    range.selectNodeContents(editorElement);
+                    range.collapse(false); // false = 折叠到末尾
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }
+        }
+
+        // 自动聚焦（快速尝试）
+        function autoFocus() {
+            // 尝试多次聚焦，确保键盘弹出
+            [50, 150, 300].forEach(delay => {
+                setTimeout(() => focusEditor(), delay);
+            });
+        }
+
+        // 供 Swift 调用：设置内容
+        function setContent(content) {
+            if (vditor) {
+                vditor.setValue(content);
+            }
+        }
+
+        // 供 Swift 调用：获取内容
+        function getContent() {
+            return vditor ? vditor.getValue() : '';
+        }
+
+        // 供 Swift 调用：插入内容
+        function insertValue(content) {
+            if (vditor) {
+                vditor.insertValue(content);
+            }
+        }
+
+        // 供 Swift 调用：在光标处插入图片
+        function insertImage(url, alt) {
+            if (vditor) {
+                const markdown = `![${alt || 'image'}](${url})`;
+
+                // 使用 insertValue 在当前位置插入图片，会自动处理光标
+                // 添加换行确保光标在下一行
+                vditor.insertValue('\n' + markdown + '\n\n');
+
+                // 手动通知 Swift 内容已更新
+                const newContent = vditor.getValue();
+                window.webkit?.messageHandlers?.contentChanged?.postMessage(newContent);
+
+                // 延迟后滚动到可见位置
+                setTimeout(() => {
+                    // 滚动编辑器到底部
+                    const editorElement = document.querySelector('.vditor-ir .vditor-reset');
+                    if (editorElement) {
+                        // 使用 smooth 滚动
+                        editorElement.scrollTo({
+                            top: editorElement.scrollHeight,
+                            behavior: 'smooth'
+                        });
+                    }
+                }, 300);
+            }
+        }
+
+        // 滚动到光标位置
+        function scrollToCursor() {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+
+                // 如果光标位置在可视区域外，滚动到可见
+                const editorElement = document.querySelector('.vditor-ir .vditor-reset');
+                if (editorElement && rect.bottom > 0) {
+                    // 计算需要滚动的位置
+                    const editorRect = editorElement.getBoundingClientRect();
+                    if (rect.bottom > editorRect.bottom || rect.top < editorRect.top) {
+                        // 滚动到光标位置
+                        editorElement.scrollTop = editorElement.scrollHeight;
+                    }
+                }
+            } else {
+                // 如果没有选区，直接滚动到底部
+                const editorElement = document.querySelector('.vditor-ir .vditor-reset');
+                if (editorElement) {
+                    editorElement.scrollTop = editorElement.scrollHeight;
+                }
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', initVditor);
+    </script>
+</body>
+
+</html>
