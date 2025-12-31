@@ -56,7 +56,7 @@ struct MainTabView: View {
         let selectedColor = UIColor(red: 0/255.0, green: 47/255.0, blue: 167/255.0, alpha: 1.0)
         
         switch themeManager.currentTheme {
-        case .slate:
+        case .slate, .auto:
             bgColor = UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0)
             itemColor = UIColor(white: 0.6, alpha: 1.0)
         case .oled:

@@ -13,18 +13,21 @@ import Combine
 enum AppTheme: String, CaseIterable {
     case slate = "slate"      // 深蓝灰主题（当前）
     case oled = "oled"        // 纯黑 OLED 主题
+    case auto = "auto"        // 自动跟随系统
     
     var displayName: String {
         switch self {
         case .slate: return "深蓝"
         case .oled: return "纯黑"
+        case .auto: return "自动"
         }
     }
     
     var icon: String {
         switch self {
-        case .slate: return "moon.fill"
+        case .slate: return "moon.stars.fill"
         case .oled: return "circle.fill"
+        case .auto: return "circle.lefthalf.filled"
         }
     }
 }
@@ -40,14 +43,42 @@ class ThemeManager: ObservableObject {
         }
     }
     
+    /// 当前系统配色方案（用于自动主题）
+    @Published var systemColorScheme: ColorScheme = .dark
+    
+    /// 解析后的实际主题（处理 auto 模式）
+    var resolvedTheme: AppTheme {
+        switch currentTheme {
+        case .auto:
+            return systemColorScheme == .dark ? .slate : .slate // 暗色系 App，始终使用暗色主题
+        default:
+            return currentTheme
+        }
+    }
+    
+    /// 解析后的主题颜色
+    var resolvedColors: ThemeColors {
+        ThemeColors.current(resolvedTheme)
+    }
+    
     private init() {
         let savedTheme = UserDefaults.standard.string(forKey: "app_theme") ?? AppTheme.slate.rawValue
         self.currentTheme = AppTheme(rawValue: savedTheme) ?? .slate
     }
     
+    /// 更新系统配色方案
+    func updateSystemColorScheme(_ scheme: ColorScheme) {
+        systemColorScheme = scheme
+    }
+    
     func toggle() {
         withAnimation(.easeInOut(duration: 0.3)) {
-            currentTheme = currentTheme == .slate ? .oled : .slate
+            // 在三个主题间循环：slate -> oled -> auto -> slate
+            switch currentTheme {
+            case .slate: currentTheme = .oled
+            case .oled: currentTheme = .auto
+            case .auto: currentTheme = .slate
+            }
         }
     }
 }
@@ -92,6 +123,9 @@ struct ThemeColors {
         switch theme {
         case .slate: return .slate
         case .oled: return .oled
+        case .auto:
+            // 自动模式下使用 ThemeManager 的解析结果
+            return ThemeManager.shared.systemColorScheme == .dark ? .slate : .slate
         }
     }
 }

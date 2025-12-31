@@ -10,20 +10,33 @@ import SwiftUI
 /// 设置页面视图
 struct SettingsView: View {
     @ObservedObject private var themeManager = ThemeManager.shared
+    @Environment(\.colorScheme) private var colorScheme
+    
+    // GitHub Token
     @State private var githubToken: String = ""
     @State private var isTokenVisible: Bool = false
     @State private var isVerifying: Bool = false
     @State private var verificationResult: VerificationResult?
     
-    // 主题切换用的计算属性
-    private var isOLEDTheme: Bool {
-        get { themeManager.currentTheme == .oled }
-    }
+    // 仓库配置
+    @State private var githubOwner: String = ""
+    @State private var githubRepo: String = ""
+    @State private var githubBranch: String = ""
+    
+    // 图床配置
+    @State private var imageRepo: String = ""
+    @State private var cdnType: String = "jsdelivr"
+    
+    // 缓存
+    @State private var cacheSize: String = "计算中..."
+    @State private var showClearCacheAlert: Bool = false
     
     enum VerificationResult {
-        case success(String) // 用户名
-        case failure(String) // 错误信息
+        case success(String)
+        case failure(String)
     }
+    
+    private let cdnOptions = ["jsdelivr", "statically", "raw"]
     
     var body: some View {
         NavigationView {
@@ -32,8 +45,17 @@ struct SettingsView: View {
                     // 外观设置
                     appearanceSection
                     
-                    // GitHub 配置
-                    githubSection
+                    // GitHub Token 配置
+                    githubTokenSection
+                    
+                    // 仓库配置
+                    repoConfigSection
+                    
+                    // 图床配置
+                    imageConfigSection
+                    
+                    // 缓存管理
+                    cacheSection
                     
                     // 关于
                     aboutSection
@@ -49,7 +71,19 @@ struct SettingsView: View {
             .toolbarBackground(.visible, for: .navigationBar)
         }
         .onAppear {
-            loadToken()
+            loadSettings()
+            calculateCacheSize()
+        }
+        .onChange(of: colorScheme) { _, newScheme in
+            themeManager.updateSystemColorScheme(newScheme)
+        }
+        .alert("清除缓存", isPresented: $showClearCacheAlert) {
+            Button("取消", role: .cancel) { }
+            Button("清除", role: .destructive) {
+                clearCache()
+            }
+        } message: {
+            Text("确定要清除所有本地缓存吗？这将删除 Essays 缓存数据。")
         }
     }
     
@@ -59,42 +93,16 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader("外观")
             
-            HStack {
-                // 左侧图标和文字
-                HStack(spacing: 12) {
-                    Image(systemName: themeManager.currentTheme == .oled ? "circle.fill" : "moon.stars.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.primaryBlue)
-                        .frame(width: 32)
+            VStack(spacing: 0) {
+                ForEach(AppTheme.allCases, id: \.rawValue) { theme in
+                    themeRow(theme)
                     
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("纯黑主题")
-                            .font(.system(size: 15))
-                            .foregroundColor(.textMain)
-                        
-                        Text("OLED 省电模式")
-                            .font(.system(size: 12))
-                            .foregroundColor(.textMuted)
+                    if theme != .auto {
+                        Divider()
+                            .background(Color.borderColor)
                     }
                 }
-                
-                Spacer()
-                
-                // Toggle 开关
-                Toggle("", isOn: Binding(
-                    get: { themeManager.currentTheme == .oled },
-                    set: { newValue in
-                        HapticManager.impact(.light)
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            themeManager.currentTheme = newValue ? .oled : .slate
-                        }
-                    }
-                ))
-                .labelsHidden()
-                .tint(.primaryBlue)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: ThemeStyle.radiusMd)
                     .fill(Color.bgSurface)
@@ -102,11 +110,43 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - GitHub 配置
+    private func themeRow(_ theme: AppTheme) -> some View {
+        Button {
+            HapticManager.impact(.light)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                themeManager.currentTheme = theme
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: theme.icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(themeManager.currentTheme == theme ? .primaryBlue : .textSecondary)
+                    .frame(width: 28)
+                
+                Text(theme.displayName)
+                    .font(.system(size: 15))
+                    .foregroundColor(.textMain)
+                
+                Spacer()
+                
+                if themeManager.currentTheme == theme {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.primaryBlue)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
     
-    private var githubSection: some View {
+    // MARK: - GitHub Token 配置
+    
+    private var githubTokenSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("GitHub 配置")
+            sectionHeader("GitHub Token")
             
             VStack(spacing: 12) {
                 // Token 输入框
@@ -125,7 +165,6 @@ struct SettingsView: View {
                             .autocorrectionDisabled()
                     }
                     
-                    // 显示/隐藏按钮
                     Button {
                         isTokenVisible.toggle()
                     } label: {
@@ -211,10 +250,150 @@ struct SettingsView: View {
                 }
             }
             
-            // 提示信息
             Text("Token 将安全存储在设备 Keychain 中")
                 .font(.system(size: 12))
                 .foregroundColor(.textMuted)
+        }
+    }
+    
+    // MARK: - 仓库配置
+    
+    private var repoConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("仓库配置")
+            
+            VStack(spacing: 12) {
+                configInputRow(title: "Owner", placeholder: "GitHub 用户名", text: $githubOwner)
+                configInputRow(title: "Repo", placeholder: "仓库名称", text: $githubRepo)
+                configInputRow(title: "Branch", placeholder: "分支名称", text: $githubBranch)
+                
+                HStack(spacing: 12) {
+                    Button {
+                        saveRepoConfig()
+                    } label: {
+                        Text("保存仓库配置")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                                    .fill(Color.primaryBlue)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        resetToDefaults()
+                    } label: {
+                        Text("重置")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.textSecondary)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                                    .fill(Color.bgSurfaceHover)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Text("修改后需要重新启动 App 或刷新 Essays 列表")
+                .font(.system(size: 12))
+                .foregroundColor(.textMuted)
+        }
+    }
+    
+    // MARK: - 图床配置
+    
+    private var imageConfigSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("图床配置")
+            
+            VStack(spacing: 12) {
+                configInputRow(title: "图床仓库", placeholder: "图片存储仓库", text: $imageRepo)
+                
+                // CDN 类型选择
+                HStack {
+                    Text("CDN 类型")
+                        .font(.system(size: 14))
+                        .foregroundColor(.textSecondary)
+                        .frame(width: 70, alignment: .leading)
+                    
+                    Picker("", selection: $cdnType) {
+                        ForEach(cdnOptions, id: \.self) { option in
+                            Text(option).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                        .fill(Color.bgSurface)
+                )
+                
+                Button {
+                    saveImageConfig()
+                } label: {
+                    Text("保存图床配置")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                                .fill(Color.primaryBlue)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+    
+    // MARK: - 缓存管理
+    
+    private var cacheSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("缓存")
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("本地缓存")
+                        .font(.system(size: 15))
+                        .foregroundColor(.textMain)
+                    
+                    Text(cacheSize)
+                        .font(.system(size: 13))
+                        .foregroundColor(.textMuted)
+                }
+                
+                Spacer()
+                
+                Button {
+                    showClearCacheAlert = true
+                } label: {
+                    Text("清除")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.errorRed)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                                .fill(Color.errorRed.opacity(0.15))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: ThemeStyle.radiusMd)
+                    .fill(Color.bgSurface)
+            )
         }
     }
     
@@ -227,16 +406,53 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 infoRow(title: "版本", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
                 
-                Divider()
-                    .background(Color.borderColor)
+                Divider().background(Color.borderColor)
                 
                 infoRow(title: "构建", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1")
+                
+                Divider().background(Color.borderColor)
+                
+                // GitHub 链接
+                Button {
+                    if let url = URL(string: "https://github.com/SUNSIR007/Swift_MarkdownEditor") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    HStack {
+                        Text("GitHub")
+                            .font(.system(size: 15))
+                            .foregroundColor(.textMain)
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 4) {
+                            Text("开源仓库")
+                                .font(.system(size: 14))
+                                .foregroundColor(.primaryBlue)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 12))
+                                .foregroundColor(.primaryBlue)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                }
+                .buttonStyle(.plain)
             }
             .background(
                 RoundedRectangle(cornerRadius: ThemeStyle.radiusMd)
                     .fill(Color.bgSurface)
             )
         }
+    }
+    
+    // MARK: - 辅助视图
+    
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.textSecondary)
+            .textCase(.uppercase)
     }
     
     private func infoRow(title: String, value: String) -> some View {
@@ -255,20 +471,40 @@ struct SettingsView: View {
         .padding(.vertical, 14)
     }
     
-    // MARK: - 辅助视图
-    
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.textSecondary)
-            .textCase(.uppercase)
+    private func configInputRow(title: String, placeholder: String, text: Binding<String>) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundColor(.textSecondary)
+                .frame(width: 70, alignment: .leading)
+            
+            TextField(placeholder, text: text)
+                .font(.system(size: 14))
+                .foregroundColor(.textMain)
+                .autocapitalization(.none)
+                .autocorrectionDisabled()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                .fill(Color.bgSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: ThemeStyle.radiusSm)
+                        .stroke(Color.borderColor, lineWidth: 1)
+                )
+        )
     }
     
-    // MARK: - Token 操作
+    // MARK: - 数据操作
     
-    private func loadToken() {
-        // 从 Keychain 读取已保存的 Token
+    private func loadSettings() {
         githubToken = KeychainHelper.get(key: "github_token") ?? ""
+        githubOwner = AppConfig.githubOwner
+        githubRepo = AppConfig.githubRepo
+        githubBranch = AppConfig.githubBranch
+        imageRepo = AppConfig.imageRepo
+        cdnType = AppConfig.cdnType
     }
     
     private func saveToken() {
@@ -276,7 +512,6 @@ struct SettingsView: View {
         if AppConfig.saveGitHubToken(githubToken) {
             verificationResult = .success("Token 已保存")
             HapticManager.notification(.success)
-            // 3秒后清除结果提示
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 if case .success("Token 已保存") = verificationResult {
                     verificationResult = nil
@@ -291,7 +526,6 @@ struct SettingsView: View {
     private func saveAndVerifyToken() {
         guard !githubToken.isEmpty else { return }
         
-        // 先保存
         let saved = AppConfig.saveGitHubToken(githubToken)
         if !saved {
             verificationResult = .failure("保存失败")
@@ -299,7 +533,6 @@ struct SettingsView: View {
             return
         }
         
-        // 再验证
         isVerifying = true
         verificationResult = nil
         HapticManager.impact(.light)
@@ -321,10 +554,85 @@ struct SettingsView: View {
             }
         }
     }
+    
+    private func saveRepoConfig() {
+        HapticManager.impact(.light)
+        AppConfig.saveRepoConfig(
+            owner: githubOwner.isEmpty ? "SUNSIR007" : githubOwner,
+            repo: githubRepo.isEmpty ? "astro_blog" : githubRepo,
+            branch: githubBranch.isEmpty ? "main" : githubBranch
+        )
+        HapticManager.notification(.success)
+    }
+    
+    private func saveImageConfig() {
+        HapticManager.impact(.light)
+        AppConfig.saveImageConfig(
+            imageRepo: imageRepo.isEmpty ? "picx-images-hosting" : imageRepo,
+            cdnType: cdnType
+        )
+        HapticManager.notification(.success)
+    }
+    
+    private func resetToDefaults() {
+        HapticManager.impact(.medium)
+        AppConfig.resetToDefaults()
+        // 重新加载默认值
+        githubOwner = "SUNSIR007"
+        githubRepo = "astro_blog"
+        githubBranch = "main"
+        imageRepo = "picx-images-hosting"
+        cdnType = "jsdelivr"
+        HapticManager.notification(.success)
+    }
+    
+    private func calculateCacheSize() {
+        Task {
+            let size = await getCacheSize()
+            await MainActor.run {
+                cacheSize = size
+            }
+        }
+    }
+    
+    private func getCacheSize() async -> String {
+        let fileManager = FileManager.default
+        guard let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return "0 KB"
+        }
+        
+        let essayCacheURL = cacheDir.appendingPathComponent("essays_cache.json")
+        
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: essayCacheURL.path)
+            if let size = attributes[.size] as? Int64 {
+                if size < 1024 {
+                    return "\(size) B"
+                } else if size < 1024 * 1024 {
+                    return String(format: "%.1f KB", Double(size) / 1024.0)
+                } else {
+                    return String(format: "%.1f MB", Double(size) / 1024.0 / 1024.0)
+                }
+            }
+        } catch {
+            return "0 KB"
+        }
+        
+        return "0 KB"
+    }
+    
+    private func clearCache() {
+        Task {
+            await EssayService.shared.clearCache()
+            await MainActor.run {
+                cacheSize = "0 KB"
+                HapticManager.notification(.success)
+            }
+        }
+    }
 }
 
 #Preview {
     SettingsView()
         .preferredColorScheme(.dark)
 }
-
