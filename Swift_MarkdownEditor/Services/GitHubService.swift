@@ -67,18 +67,28 @@ actor GitHubService {
             guard (200...299).contains(httpResponse.statusCode) else {
                 let responseString = String(data: data, encoding: .utf8) ?? "无法解析"
                 print("❌ 错误响应: \(responseString)")
-                if let errorResponse = try? JSONDecoder().decode(GitHubErrorResponse.self, from: data) {
+                if let errorResponse: GitHubErrorResponse = Self.decodeJSON(from: data) {
                     throw GitHubError.apiError(code: httpResponse.statusCode, message: errorResponse.message)
                 }
                 throw GitHubError.apiError(code: httpResponse.statusCode, message: "Unknown error")
             }
             
             print("✅ 请求成功")
-            return try JSONDecoder().decode(T.self, from: data)
+            return try Self.decodeJSONThrowing(from: data)
         } catch let error as URLError {
             print("🌐 网络错误: \(error.localizedDescription)")
             throw error
         }
+    }
+    
+    /// nonisolated JSON 解码辅助方法（不抛出错误）
+    private nonisolated static func decodeJSON<T: Decodable>(from data: Data) -> T? {
+        try? JSONDecoder().decode(T.self, from: data)
+    }
+    
+    /// nonisolated JSON 解码辅助方法（抛出错误）
+    private nonisolated static func decodeJSONThrowing<T: Decodable>(from data: Data) throws -> T {
+        try JSONDecoder().decode(T.self, from: data)
     }
     
     // MARK: - 文件操作
