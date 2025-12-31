@@ -17,7 +17,7 @@ struct Swift_MarkdownEditorApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
         }
     }
 }

@@ -1,0 +1,216 @@
+//
+//  Essay.swift
+//  Swift_MarkdownEditor
+//
+//  Created by Ryuichi on 2025/12/31.
+//
+
+import Foundation
+
+/// Essay 数据模型
+/// 对应博客仓库中 src/content/essays/ 目录下的 Markdown 文件
+struct Essay: Identifiable, Codable, Hashable {
+    
+    /// 使用文件名作为唯一标识
+    var id: String { fileName }
+    
+    /// 完整文件名（如 "2025-12-27-124830.md"）
+    let fileName: String
+    
+    /// 标题（可选，从 frontmatter 或内容中提取）
+    let title: String?
+    
+    /// 发布日期
+    let pubDate: Date
+    
+    /// Markdown 正文内容（不含 frontmatter）
+    let content: String
+    
+    /// 原始完整内容（含 frontmatter）
+    let rawContent: String
+    
+    /// 内容预览（前 100 个字符）
+    var preview: String {
+        let cleanContent = content
+            .replacingOccurrences(of: "![", with: "")
+            .replacingOccurrences(of: "](", with: " ")
+            .replacingOccurrences(of: ")", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if cleanContent.isEmpty {
+            return "（无文字内容）"
+        }
+        
+        let maxLength = 80
+        if cleanContent.count > maxLength {
+            let index = cleanContent.index(cleanContent.startIndex, offsetBy: maxLength)
+            return String(cleanContent[..<index]) + "..."
+        }
+        return cleanContent
+    }
+    
+    /// 格式化的日期字符串
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "zh_CN")
+        return formatter.string(from: pubDate)
+    }
+    
+    /// 相对时间描述（如 "3天前"）
+    var relativeDate: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: pubDate, relativeTo: Date())
+    }
+}
+
+// MARK: - GitHub API 响应模型
+
+/// GitHub Contents API 响应中的文件信息
+struct GitHubFileInfo: Codable {
+    let name: String
+    let path: String
+    let sha: String
+    let size: Int
+    let type: String
+    let downloadUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case name, path, sha, size, type
+        case downloadUrl = "download_url"
+    }
+}
+
+// MARK: - Essay 解析器
+
+enum EssayParser {
+    
+    /// 从原始 Markdown 内容解析 Essay
+    /// - Parameters:
+    ///   - rawContent: 包含 frontmatter 的完整 Markdown 内容
+    ///   - fileName: 文件名
+    /// - Returns: 解析后的 Essay 对象，解析失败返回 nil
+    static func parse(rawContent: String, fileName: String) -> Essay? {
+        // 分离 frontmatter 和正文
+        let (frontmatter, content) = separateFrontmatter(rawContent)
+        
+        // 解析发布日期
+        guard let pubDate = parsePubDate(from: frontmatter, fileName: fileName) else {
+            return nil
+        }
+        
+        // 解析标题（可选）
+        let title = parseTitle(from: frontmatter, content: content)
+        
+        return Essay(
+            fileName: fileName,
+            title: title,
+            pubDate: pubDate,
+            content: content,
+            rawContent: rawContent
+        )
+    }
+    
+    /// 分离 frontmatter 和正文
+    private static func separateFrontmatter(_ content: String) -> (frontmatter: String, body: String) {
+        let pattern = #"^---\s*\n([\s\S]*?)\n---\s*\n?"#
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: content, range: NSRange(content.startIndex..., in: content)) else {
+            return ("", content)
+        }
+        
+        let frontmatterRange = Range(match.range(at: 1), in: content)!
+        let fullMatchRange = Range(match.range, in: content)!
+        
+        let frontmatter = String(content[frontmatterRange])
+        let body = String(content[fullMatchRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return (frontmatter, body)
+    }
+    
+    /// 从 frontmatter 或文件名解析发布日期
+    private static func parsePubDate(from frontmatter: String, fileName: String) -> Date? {
+        // 先尝试从 frontmatter 中提取 pubDate
+        let datePattern = #"pubDate:\s*["\']?(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)["\']?"#
+        
+        if let regex = try? NSRegularExpression(pattern: datePattern),
+           let match = regex.firstMatch(in: frontmatter, range: NSRange(frontmatter.startIndex..., in: frontmatter)),
+           let range = Range(match.range(at: 1), in: frontmatter) {
+            
+            let dateString = String(frontmatter[range])
+            
+            // 尝试多种日期格式
+            let formatters = [
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd HH:mm",
+                "yyyy-MM-dd"
+            ]
+            
+            for format in formatters {
+                let formatter = DateFormatter()
+                formatter.dateFormat = format
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                if let date = formatter.date(from: dateString) {
+                    return date
+                }
+            }
+        }
+        
+        // 回退：从文件名提取日期（格式：2025-12-27-HHMMSS.md 或 2025-12-27-标题-HHMMSS.md）
+        let fileNamePattern = #"^(\d{4})-(\d{2})-(\d{2})(?:-.*?)?-?(\d{6})?"#
+        
+        if let regex = try? NSRegularExpression(pattern: fileNamePattern),
+           let match = regex.firstMatch(in: fileName, range: NSRange(fileName.startIndex..., in: fileName)) {
+            
+            let year = Range(match.range(at: 1), in: fileName).map { String(fileName[$0]) } ?? "2025"
+            let month = Range(match.range(at: 2), in: fileName).map { String(fileName[$0]) } ?? "01"
+            let day = Range(match.range(at: 3), in: fileName).map { String(fileName[$0]) } ?? "01"
+            
+            var hour = "00", minute = "00", second = "00"
+            if let timeRange = Range(match.range(at: 4), in: fileName) {
+                let timeString = String(fileName[timeRange])
+                if timeString.count == 6 {
+                    hour = String(timeString.prefix(2))
+                    minute = String(timeString.dropFirst(2).prefix(2))
+                    second = String(timeString.suffix(2))
+                }
+            }
+            
+            let dateString = "\(year)-\(month)-\(day) \(hour):\(minute):\(second)"
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            return formatter.date(from: dateString)
+        }
+        
+        return Date() // 无法解析时返回当前时间
+    }
+    
+    /// 解析标题
+    private static func parseTitle(from frontmatter: String, content: String) -> String? {
+        // 先从 frontmatter 中查找 title
+        let titlePattern = #"title:\s*["\']?(.+?)["\']?\s*$"#
+        
+        if let regex = try? NSRegularExpression(pattern: titlePattern, options: .anchorsMatchLines),
+           let match = regex.firstMatch(in: frontmatter, range: NSRange(frontmatter.startIndex..., in: frontmatter)),
+           let range = Range(match.range(at: 1), in: frontmatter) {
+            let title = String(frontmatter[range]).trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty {
+                return title
+            }
+        }
+        
+        // 回退：从内容中查找第一个 # 标题
+        let headingPattern = #"^#\s+(.+)$"#
+        if let regex = try? NSRegularExpression(pattern: headingPattern, options: .anchorsMatchLines),
+           let match = regex.firstMatch(in: content, range: NSRange(content.startIndex..., in: content)),
+           let range = Range(match.range(at: 1), in: content) {
+            return String(content[range]).trimmingCharacters(in: .whitespaces)
+        }
+        
+        return nil
+    }
+}
