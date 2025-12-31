@@ -16,43 +16,44 @@ struct EssayRowView: View {
     private let timelineColor = Color(hex: "#6B7280")
     private let dotSize: CGFloat = 8
     private let lineWidth: CGFloat = 2
-    private let timelineWidth: CGFloat = 30
+    private let timelineWidth: CGFloat = 24
     
     var body: some View {
-        HStack(alignment: .top, spacing: 15) {
+        HStack(alignment: .top, spacing: 16) {
             // 左侧时间轴装饰
             timelineDecoration
             
             // 右侧内容区
             contentArea
         }
-        .padding(.vertical, 12)
     }
     
-    // MARK: - 时间轴装饰
+    // MARK: - 时间轴装饰（连续垂直线）
     
     private var timelineDecoration: some View {
-        VStack(spacing: 0) {
-            // 节点圆点
-            Circle()
-                .fill(timelineColor)
-                .frame(width: dotSize, height: dotSize)
-            
-            // 垂直连接线（非最后一条时显示）
+        ZStack(alignment: .top) {
+            // 垂直连接线（贯穿整个区域）
             if !isLast {
                 Rectangle()
                     .fill(timelineColor)
                     .frame(width: lineWidth)
-                    .frame(maxHeight: .infinity)
+                    .offset(x: (timelineWidth - lineWidth) / 2 - timelineWidth / 2)
             }
+            
+            // 节点圆点（在顶部）
+            Circle()
+                .fill(timelineColor)
+                .frame(width: dotSize, height: dotSize)
+                .padding(.top, 6)
         }
         .frame(width: timelineWidth)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
     
     // MARK: - 内容区
     
     private var contentArea: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             // 元数据行（作者 + 日期）
             metadataRow
             
@@ -63,13 +64,39 @@ struct EssayRowView: View {
                     .foregroundColor(.white)
             }
             
-            // 正文预览
-            Text(essay.preview)
-                .font(.body)
-                .foregroundColor(.white)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
+            // 图片预览（如果有）
+            if let imageURL = essay.firstImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(height: 150)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 180)
+                            .clipped()
+                            .cornerRadius(8)
+                    case .failure:
+                        EmptyView()
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            
+            // 正文预览（如果有文字内容且不只是图片）
+            if essay.preview != "（图片）" {
+                Text(essay.preview)
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .padding(.vertical, 16)
     }
     
     // MARK: - 元数据行
@@ -100,29 +127,42 @@ extension Essay {
 }
 
 #Preview {
-    VStack(spacing: 0) {
-        EssayRowView(
-            essay: Essay(
-                fileName: "test1.md",
-                title: nil,
-                pubDate: Date(),
-                content: "这是一段测试内容，用于预览时间轴风格的 Essay 列表显示效果。",
-                rawContent: ""
-            ),
-            isLast: false
-        )
-        
-        EssayRowView(
-            essay: Essay(
-                fileName: "test2.md",
-                title: "这是一个标题",
-                pubDate: Date().addingTimeInterval(-86400),
-                content: "第二条随笔的内容。",
-                rawContent: ""
-            ),
-            isLast: true
-        )
+    ScrollView {
+        VStack(spacing: 0) {
+            EssayRowView(
+                essay: Essay(
+                    fileName: "test1.md",
+                    title: nil,
+                    pubDate: Date(),
+                    content: "![image](https://example.com/image.jpg)",
+                    rawContent: ""
+                ),
+                isLast: false
+            )
+            
+            EssayRowView(
+                essay: Essay(
+                    fileName: "test2.md",
+                    title: "这是一个标题",
+                    pubDate: Date().addingTimeInterval(-86400),
+                    content: "第二条随笔的内容。",
+                    rawContent: ""
+                ),
+                isLast: false
+            )
+            
+            EssayRowView(
+                essay: Essay(
+                    fileName: "test3.md",
+                    title: nil,
+                    pubDate: Date().addingTimeInterval(-172800),
+                    content: "最后一条随笔。",
+                    rawContent: ""
+                ),
+                isLast: true
+            )
+        }
+        .padding()
     }
-    .padding()
     .background(Color.black)
 }

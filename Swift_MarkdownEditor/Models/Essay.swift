@@ -29,24 +29,62 @@ struct Essay: Identifiable, Codable, Hashable {
     /// 原始完整内容（含 frontmatter）
     let rawContent: String
     
-    /// 内容预览（前 100 个字符）
+    /// 内容预览（移除图片，只保留文字）
     var preview: String {
-        let cleanContent = content
-            .replacingOccurrences(of: "![", with: "")
-            .replacingOccurrences(of: "](", with: " ")
-            .replacingOccurrences(of: ")", with: "")
+        var cleanContent = content
+        
+        // 使用正则移除 Markdown 图片语法 ![alt](url)
+        if let regex = try? NSRegularExpression(pattern: #"!\[.*?\]\(.*?\)"#) {
+            cleanContent = regex.stringByReplacingMatches(
+                in: cleanContent,
+                range: NSRange(cleanContent.startIndex..., in: cleanContent),
+                withTemplate: ""
+            )
+        }
+        
+        // 移除 Markdown 链接语法 [text](url)，保留 text
+        if let regex = try? NSRegularExpression(pattern: #"\[(.*?)\]\(.*?\)"#) {
+            cleanContent = regex.stringByReplacingMatches(
+                in: cleanContent,
+                range: NSRange(cleanContent.startIndex..., in: cleanContent),
+                withTemplate: "$1"
+            )
+        }
+        
+        // 移除多余空白
+        cleanContent = cleanContent
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
         if cleanContent.isEmpty {
-            return "（无文字内容）"
+            return "（图片）"
         }
         
-        let maxLength = 80
+        let maxLength = 100
         if cleanContent.count > maxLength {
             let index = cleanContent.index(cleanContent.startIndex, offsetBy: maxLength)
             return String(cleanContent[..<index]) + "..."
         }
         return cleanContent
+    }
+    
+    /// 提取内容中的第一张图片 URL（用于预览）
+    var firstImageURL: URL? {
+        let pattern = #"!\[.*?\]\((.*?)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: content, range: NSRange(content.startIndex..., in: content)),
+              let range = Range(match.range(at: 1), in: content) else {
+            return nil
+        }
+        return URL(string: String(content[range]))
+    }
+    
+    /// 是否包含图片
+    var hasImage: Bool {
+        return firstImageURL != nil
     }
     
     /// 格式化的日期字符串
