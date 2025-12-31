@@ -17,16 +17,23 @@ struct MainTabView: View {
             // 编辑器 Tab
             ContentView()
                 .tabItem {
-                    Label("编辑", systemImage: "square.and.pencil")
+                    Image(systemName: "square.and.pencil")
                 }
                 .tag(0)
             
             // Essays Tab
             EssaysListView()
                 .tabItem {
-                    Label("随笔", systemImage: "book.fill")
+                    Image(systemName: "book.fill")
                 }
                 .tag(1)
+            
+            // 设置 Tab
+            SettingsView()
+                .tabItem {
+                    Image(systemName: "gearshape.fill")
+                }
+                .tag(2)
         }
         .tint(.primaryBlue)
         .onAppear {
@@ -59,10 +66,29 @@ struct MainTabView: View {
         }
         
         appearance.backgroundColor = bgColor
+        
+        // 图标样式 - 调小尺寸
+        let iconFont = UIFont.systemFont(ofSize: 18, weight: .regular)
+        
+        // 正常状态
         appearance.stackedLayoutAppearance.normal.iconColor = itemColor
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: itemColor]
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
+            .foregroundColor: UIColor.clear,
+            .font: UIFont.systemFont(ofSize: 0)
+        ]
+        
+        // 选中状态
         appearance.stackedLayoutAppearance.selected.iconColor = selectedColor
-        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
+            .foregroundColor: UIColor.clear,
+            .font: UIFont.systemFont(ofSize: 0)
+        ]
+        
+        // 紧凑布局
+        appearance.compactInlineLayoutAppearance.normal.iconColor = itemColor
+        appearance.compactInlineLayoutAppearance.selected.iconColor = selectedColor
+        appearance.inlineLayoutAppearance.normal.iconColor = itemColor
+        appearance.inlineLayoutAppearance.selected.iconColor = selectedColor
         
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
@@ -72,3 +98,4 @@ struct MainTabView: View {
 #Preview {
     MainTabView()
 }
+

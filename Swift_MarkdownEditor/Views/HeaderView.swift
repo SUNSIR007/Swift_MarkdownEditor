@@ -8,10 +8,9 @@
 import SwiftUI
 
 /// Header 组件 - 匹配 PWA 简洁布局
-/// 显示上传按钮、相机按钮、主题切换按钮和 Post 按钮
+/// 显示上传按钮、相机按钮和 Post 按钮
 struct HeaderView: View {
     @ObservedObject var viewModel: EditorViewModel
-    @ObservedObject var themeManager = ThemeManager.shared
     var onImageUpload: () -> Void
     var onCameraCapture: () -> Void
     
@@ -22,9 +21,6 @@ struct HeaderView: View {
             
             // 拍照按钮
             cameraButton
-            
-            // 主题切换按钮
-            themeToggleButton
             
             Spacer()
             
@@ -87,49 +83,6 @@ struct HeaderView: View {
         )
         .opacity(CameraView.isAvailable ? 1 : 0.5)
         .disabled(!CameraView.isAvailable)
-    }
-    
-    // MARK: - 主题切换按钮
-    
-    @State private var isThemePressed = false
-    @State private var rotationAngle: Double = 0
-    
-    private var themeToggleButton: some View {
-        Button {
-            HapticManager.impact(.light)
-            withAnimation(.easeInOut(duration: 0.3)) {
-                rotationAngle += 180
-            }
-            themeManager.toggle()
-        } label: {
-            ZStack {
-                // 深蓝主题图标
-                Image(systemName: "moon.stars.fill")
-                    .font(.system(size: 18, weight: .regular))
-                    .foregroundColor(.textMain)
-                    .opacity(themeManager.currentTheme == .slate ? 1 : 0)
-                    .scaleEffect(themeManager.currentTheme == .slate ? 1 : 0.5)
-                
-                // 纯黑主题图标
-                Image(systemName: "circle.fill")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.textMain)
-                    .opacity(themeManager.currentTheme == .oled ? 1 : 0)
-                    .scaleEffect(themeManager.currentTheme == .oled ? 1 : 0.5)
-            }
-            .frame(width: 44, height: 44)
-            .rotationEffect(.degrees(rotationAngle))
-        }
-        .buttonStyle(.plain)
-        .glassEffect()
-        .scaleEffect(isThemePressed ? 1.15 : 1.0)
-        .brightness(isThemePressed ? 0.15 : 0)
-        .animation(.easeInOut(duration: 0.06), value: isThemePressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in isThemePressed = true }
-                .onEnded { _ in isThemePressed = false }
-        )
     }
     
     // MARK: - 发布按钮
@@ -197,3 +150,4 @@ struct HighlightButtonStyle: ButtonStyle {
     .preferredColorScheme(.dark)
     .background(Color.bgBody)
 }
+

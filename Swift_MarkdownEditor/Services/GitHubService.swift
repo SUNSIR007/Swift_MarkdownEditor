@@ -5,7 +5,7 @@
 //  Created by Ryuichi on 2025/12/26.
 //
 
-@preconcurrency import Foundation
+import Foundation
 
 /// GitHub API 服务
 /// 对应 PWA 中的 github-service.js
@@ -26,7 +26,7 @@ actor GitHubService {
     // MARK: - API 请求
     
     /// 发送 GitHub API 请求
-    private func request<T: Decodable & Sendable>(
+    private func request<T: Decodable>(
         endpoint: String,
         method: String = "GET",
         body: Data? = nil
@@ -67,28 +67,18 @@ actor GitHubService {
             guard (200...299).contains(httpResponse.statusCode) else {
                 let responseString = String(data: data, encoding: .utf8) ?? "无法解析"
                 print("❌ 错误响应: \(responseString)")
-                if let errorResponse: GitHubErrorResponse = Self.decodeJSON(from: data) {
+                if let errorResponse = try? JSONDecoder().decode(GHErrorResponse.self, from: data) {
                     throw GitHubError.apiError(code: httpResponse.statusCode, message: errorResponse.message)
                 }
                 throw GitHubError.apiError(code: httpResponse.statusCode, message: "Unknown error")
             }
             
             print("✅ 请求成功")
-            return try Self.decodeJSONThrowing(from: data)
+            return try JSONDecoder().decode(T.self, from: data)
         } catch let error as URLError {
             print("🌐 网络错误: \(error.localizedDescription)")
             throw error
         }
-    }
-    
-    /// nonisolated JSON 解码辅助方法（不抛出错误）
-    private nonisolated static func decodeJSON<T: Decodable>(from data: Data) -> T? {
-        try? JSONDecoder().decode(T.self, from: data)
-    }
-    
-    /// nonisolated JSON 解码辅助方法（抛出错误）
-    private nonisolated static func decodeJSONThrowing<T: Decodable>(from data: Data) throws -> T {
-        try JSONDecoder().decode(T.self, from: data)
     }
     
     // MARK: - 文件操作
@@ -96,7 +86,7 @@ actor GitHubService {
     /// 获取文件内容
     func getFile(path: String) async throws -> FileContent? {
         do {
-            let response: GitHubFileResponse = try await request(
+            let response: GHFileResponse = try await request(
                 endpoint: "/repos/\(AppConfig.githubOwner)/\(AppConfig.githubRepo)/contents/\(path)"
             )
             
@@ -121,7 +111,7 @@ actor GitHubService {
         content: String,
         message: String,
         sha: String? = nil
-    ) async throws -> CreateFileResponse {
+    ) async throws -> GHCreateFileResponse {
         guard let contentData = content.data(using: .utf8) else {
             throw GitHubError.invalidContent
         }
@@ -259,7 +249,7 @@ actor GitHubService {
         
         let bodyData = try JSONSerialization.data(withJSONObject: requestBody)
         
-        let response: CreateFileResponse = try await request(
+        let response: GHCreateFileResponse = try await request(
             endpoint: "/repos/\(AppConfig.githubOwner)/\(AppConfig.imageRepo)/contents/\(filePath)",
             method: "PUT",
             body: bodyData

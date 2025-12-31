@@ -7,15 +7,13 @@
 
 import Foundation
 
-// MARK: - API 响应模型
+// MARK: - 响应模型
 
-/// GitHub API 错误响应
-struct GitHubErrorResponse: Decodable, Sendable {
+struct GHErrorResponse: Decodable, Sendable {
     let message: String
 }
 
-/// GitHub 文件响应
-struct GitHubFileResponse: Decodable, Sendable {
+struct GHFileResponse: Decodable, Sendable {
     let name: String
     let path: String
     let sha: String
@@ -27,8 +25,7 @@ struct GitHubFileResponse: Decodable, Sendable {
     }
 }
 
-/// 创建/更新文件响应
-struct CreateFileResponse: Decodable, Sendable {
+struct GHCreateFileResponse: Decodable, Sendable {
     let content: FileInfo
     
     struct FileInfo: Decodable, Sendable {
@@ -44,15 +41,11 @@ struct CreateFileResponse: Decodable, Sendable {
     }
 }
 
-// MARK: - 内部数据模型
-
-/// 文件内容包装
 struct FileContent: Sendable {
     let content: String
     let sha: String
 }
 
-/// 发布结果
 struct PublishResult: Sendable {
     let success: Bool
     let filePath: String
@@ -60,7 +53,6 @@ struct PublishResult: Sendable {
     let action: String
 }
 
-/// 图片上传结果
 struct ImageUploadResult: Sendable {
     let success: Bool
     let path: String

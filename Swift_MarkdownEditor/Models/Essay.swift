@@ -123,14 +123,14 @@ struct GitHubFileInfo: Codable {
 
 // MARK: - Essay 解析器
 
-enum EssayParser {
+nonisolated enum EssayParser {
     
     /// 从原始 Markdown 内容解析 Essay
     /// - Parameters:
     ///   - rawContent: 包含 frontmatter 的完整 Markdown 内容
     ///   - fileName: 文件名
     /// - Returns: 解析后的 Essay 对象，解析失败返回 nil
-    nonisolated static func parse(rawContent: String, fileName: String) -> Essay? {
+    static func parse(rawContent: String, fileName: String) -> Essay? {
         // 分离 frontmatter 和正文
         let (frontmatter, content) = separateFrontmatter(rawContent)
         
@@ -152,7 +152,7 @@ enum EssayParser {
     }
     
     /// 分离 frontmatter 和正文
-    private nonisolated static func separateFrontmatter(_ content: String) -> (frontmatter: String, body: String) {
+    private static func separateFrontmatter(_ content: String) -> (frontmatter: String, body: String) {
         let pattern = #"^---\s*\n([\s\S]*?)\n---\s*\n?"#
         
         guard let regex = try? NSRegularExpression(pattern: pattern),
@@ -170,7 +170,7 @@ enum EssayParser {
     }
     
     /// 从 frontmatter 或文件名解析发布日期
-    private nonisolated static func parsePubDate(from frontmatter: String, fileName: String) -> Date? {
+    private static func parsePubDate(from frontmatter: String, fileName: String) -> Date? {
         // 先尝试从 frontmatter 中提取 pubDate
         let datePattern = #"pubDate:\s*["\']?(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)["\']?"#
         
@@ -228,7 +228,7 @@ enum EssayParser {
     }
     
     /// 解析标题
-    private nonisolated static func parseTitle(from frontmatter: String, content: String) -> String? {
+    private static func parseTitle(from frontmatter: String, content: String) -> String? {
         // 先从 frontmatter 中查找 title
         let titlePattern = #"title:\s*["\']?(.+?)["\']?\s*$"#
         

@@ -7,6 +7,8 @@
 
 import Foundation
 
+// Trigger rebuild
+
 /// Essay 服务 - 负责从 GitHub 获取 Essays 数据
 actor EssayService {
     
