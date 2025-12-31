@@ -52,17 +52,16 @@ struct MainTabView: View {
         // 根据主题设置颜色
         let bgColor: UIColor
         let itemColor: UIColor
-        let selectedColor: UIColor
+        // 主题色 #23233B = RGB(35, 35, 59)
+        let selectedColor = UIColor(red: 35/255.0, green: 35/255.0, blue: 59/255.0, alpha: 1.0)
         
         switch themeManager.currentTheme {
         case .slate:
             bgColor = UIColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1.0)
             itemColor = UIColor(white: 0.6, alpha: 1.0)
-            selectedColor = UIColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 1.0)
         case .oled:
             bgColor = .black
             itemColor = UIColor(white: 0.5, alpha: 1.0)
-            selectedColor = UIColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 1.0)
         }
         
         appearance.backgroundColor = bgColor
