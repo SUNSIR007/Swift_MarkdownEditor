@@ -67,9 +67,6 @@ struct MainTabView: View {
         
         appearance.backgroundColor = bgColor
         
-        // 图标样式 - 调小尺寸
-        let iconFont = UIFont.systemFont(ofSize: 18, weight: .regular)
-        
         // 正常状态
         appearance.stackedLayoutAppearance.normal.iconColor = itemColor
         appearance.stackedLayoutAppearance.normal.titleTextAttributes = [

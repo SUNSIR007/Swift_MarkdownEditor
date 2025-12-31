@@ -15,6 +15,11 @@ struct SettingsView: View {
     @State private var isVerifying: Bool = false
     @State private var verificationResult: VerificationResult?
     
+    // 主题切换用的计算属性
+    private var isOLEDTheme: Bool {
+        get { themeManager.currentTheme == .oled }
+    }
+    
     enum VerificationResult {
         case success(String) // 用户名
         case failure(String) // 错误信息
@@ -23,7 +28,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     // 外观设置
                     appearanceSection
                     
@@ -34,12 +39,12 @@ struct SettingsView: View {
                     aboutSection
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.top, 8)
                 .padding(.bottom, 40)
             }
             .background(Color.bgBody)
             .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.bgBody, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
         }
@@ -54,60 +59,47 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader("外观")
             
-            HStack(spacing: 12) {
-                // 深蓝主题卡片
-                themeCard(
-                    theme: .slate,
-                    icon: "moon.stars.fill",
-                    isSelected: themeManager.currentTheme == .slate
-                )
+            HStack {
+                // 左侧图标和文字
+                HStack(spacing: 12) {
+                    Image(systemName: themeManager.currentTheme == .oled ? "circle.fill" : "moon.stars.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.primaryBlue)
+                        .frame(width: 32)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("纯黑主题")
+                            .font(.system(size: 15))
+                            .foregroundColor(.textMain)
+                        
+                        Text("OLED 省电模式")
+                            .font(.system(size: 12))
+                            .foregroundColor(.textMuted)
+                    }
+                }
                 
-                // 纯黑主题卡片
-                themeCard(
-                    theme: .oled,
-                    icon: "circle.fill",
-                    isSelected: themeManager.currentTheme == .oled
-                )
-            }
-        }
-    }
-    
-    private func themeCard(theme: AppTheme, icon: String, isSelected: Bool) -> some View {
-        Button {
-            HapticManager.impact(.light)
-            withAnimation(.easeInOut(duration: 0.2)) {
-                themeManager.currentTheme = theme
-            }
-        } label: {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 28))
-                    .foregroundColor(isSelected ? .primaryBlue : .textSecondary)
+                Spacer()
                 
-                Text(theme.displayName)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? .textMain : .textSecondary)
+                // Toggle 开关
+                Toggle("", isOn: Binding(
+                    get: { themeManager.currentTheme == .oled },
+                    set: { newValue in
+                        HapticManager.impact(.light)
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            themeManager.currentTheme = newValue ? .oled : .slate
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .tint(.primaryBlue)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 100)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: ThemeStyle.radiusMd)
                     .fill(Color.bgSurface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ThemeStyle.radiusMd)
-                            .stroke(isSelected ? Color.primaryBlue : Color.borderColor, lineWidth: isSelected ? 2 : 1)
-                    )
             )
-            .overlay(alignment: .topTrailing) {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.primaryBlue)
-                        .padding(8)
-                }
-            }
         }
-        .buttonStyle(.plain)
     }
     
     // MARK: - GitHub 配置
@@ -158,10 +150,10 @@ struct SettingsView: View {
                 if let result = verificationResult {
                     HStack(spacing: 8) {
                         switch result {
-                        case .success(let username):
+                        case .success(let message):
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.successGreen)
-                            Text("已验证：\(username)")
+                            Text(message)
                                 .foregroundColor(.successGreen)
                         case .failure(let error):
                             Image(systemName: "xmark.circle.fill")
@@ -190,9 +182,11 @@ struct SettingsView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .disabled(githubToken.isEmpty)
+                    .opacity(githubToken.isEmpty ? 0.6 : 1)
                     
                     Button {
-                        verifyToken()
+                        saveAndVerifyToken()
                     } label: {
                         HStack(spacing: 6) {
                             if isVerifying {
@@ -200,7 +194,7 @@ struct SettingsView: View {
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     .scaleEffect(0.7)
                             }
-                            Text("验证")
+                            Text("保存并验证")
                                 .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(.white)
@@ -286,6 +280,7 @@ struct SettingsView: View {
         HapticManager.impact(.light)
         if AppConfig.saveGitHubToken(githubToken) {
             verificationResult = .success("Token 已保存")
+            HapticManager.notification(.success)
             // 3秒后清除结果提示
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 if case .success("Token 已保存") = verificationResult {
@@ -294,12 +289,22 @@ struct SettingsView: View {
             }
         } else {
             verificationResult = .failure("保存失败")
+            HapticManager.notification(.error)
         }
     }
     
-    private func verifyToken() {
+    private func saveAndVerifyToken() {
         guard !githubToken.isEmpty else { return }
         
+        // 先保存
+        let saved = AppConfig.saveGitHubToken(githubToken)
+        if !saved {
+            verificationResult = .failure("保存失败")
+            HapticManager.notification(.error)
+            return
+        }
+        
+        // 再验证
         isVerifying = true
         verificationResult = nil
         HapticManager.impact(.light)
@@ -309,7 +314,7 @@ struct SettingsView: View {
                 let username = try await verifyGitHubToken(githubToken)
                 await MainActor.run {
                     isVerifying = false
-                    verificationResult = .success(username)
+                    verificationResult = .success("已验证：\(username)")
                     HapticManager.notification(.success)
                 }
             } catch {
@@ -348,3 +353,4 @@ struct SettingsView: View {
     SettingsView()
         .preferredColorScheme(.dark)
 }
+
