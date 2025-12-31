@@ -330,14 +330,25 @@ struct SettingsView: View {
     private func verifyGitHubToken(_ token: String) async throws -> String {
         let url = URL(string: "https://api.github.com/user")!
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // GitHub PAT 使用 "token xxx" 格式，而不是 "Bearer xxx"
+        request.setValue("token \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+        
+        // 打印响应状态码以便调试
+        print("🔐 Token 验证响应: \(httpResponse.statusCode)")
+        
+        guard httpResponse.statusCode == 200 else {
+            // 尝试解析错误信息
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("❌ Token 验证错误: \(errorString)")
+            }
+            throw URLError(.userAuthenticationRequired)
         }
         
         struct GitHubUser: Decodable {
