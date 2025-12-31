@@ -26,7 +26,7 @@ actor GitHubService {
     // MARK: - API 请求
     
     /// 发送 GitHub API 请求
-    private nonisolated func request<T: Decodable & Sendable>(
+    private func request<T: Decodable & Sendable>(
         endpoint: String,
         method: String = "GET",
         body: Data? = nil
@@ -293,11 +293,13 @@ enum GitHubError: Error, LocalizedError {
 
 // MARK: - 响应模型
 
-struct GitHubErrorResponse: Decodable, Sendable {
+// 使用 @unchecked Sendable 来满足 Swift 6 并发要求
+// 这些结构体是不可变的，因此可以安全地跨 actor 传递
+struct GitHubErrorResponse: Decodable, @unchecked Sendable {
     let message: String
 }
 
-struct GitHubFileResponse: Decodable, Sendable {
+struct GitHubFileResponse: Decodable, @unchecked Sendable {
     let name: String
     let path: String
     let sha: String
@@ -309,10 +311,10 @@ struct GitHubFileResponse: Decodable, Sendable {
     }
 }
 
-struct CreateFileResponse: Decodable, Sendable {
+struct CreateFileResponse: Decodable, @unchecked Sendable {
     let content: FileInfo
     
-    struct FileInfo: Decodable, Sendable {
+    struct FileInfo: Decodable, @unchecked Sendable {
         let name: String
         let path: String
         let sha: String
