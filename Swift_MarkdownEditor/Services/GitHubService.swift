@@ -26,7 +26,7 @@ actor GitHubService {
     // MARK: - API 请求
     
     /// 发送 GitHub API 请求
-    private func request<T: Decodable>(
+    private nonisolated func request<T: Decodable & Sendable>(
         endpoint: String,
         method: String = "GET",
         body: Data? = nil
