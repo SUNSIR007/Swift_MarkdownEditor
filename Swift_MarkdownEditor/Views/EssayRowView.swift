@@ -114,14 +114,13 @@ struct EssayRowView: View {
             contentArea
         }
         .contentShape(Rectangle()) // 确保整行可点击
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        .contextMenu {
             if let onEdit = onEdit {
                 Button {
                     onEdit()
                 } label: {
                     Label("编辑", systemImage: "pencil")
                 }
-                .tint(.blue)
             }
         }
     }
