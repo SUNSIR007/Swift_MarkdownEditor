@@ -16,10 +16,10 @@ class EssayViewModel: ObservableObject {
     /// Essays 列表
     @Published var essays: [Essay] = []
     
-    /// 加载状态
+    /// 加载状态（首次加载时显示）
     @Published var isLoading = false
     
-    /// 刷新状态
+    /// 刷新状态（下拉刷新时使用）
     @Published var isRefreshing = false
     
     /// 错误信息
@@ -31,6 +31,9 @@ class EssayViewModel: ObservableObject {
     /// 详情加载中
     @Published var isLoadingDetail = false
     
+    /// 是否已加载过数据
+    private var hasLoadedOnce = false
+    
     /// 刷新任务
     private var refreshTask: Task<Void, Never>?
     
@@ -39,6 +42,16 @@ class EssayViewModel: ObservableObject {
     /// 加载 Essays 列表
     /// - Parameter forceRefresh: 是否强制刷新
     func loadEssays(forceRefresh: Bool = false) async {
+        // 如果有缓存数据，先显示缓存
+        if !hasLoadedOnce {
+            let cachedData = await EssayService.shared.getCachedEssays()
+            if !cachedData.isEmpty {
+                essays = cachedData
+                print("📦 先显示缓存数据，共 \(cachedData.count) 条")
+            }
+        }
+        
+        // 设置加载状态
         if forceRefresh {
             isRefreshing = true
         } else if essays.isEmpty {
@@ -49,21 +62,25 @@ class EssayViewModel: ObservableObject {
         
         do {
             let fetchedEssays = try await EssayService.shared.fetchEssays(forceRefresh: forceRefresh)
+            
+            // 更新数据
             essays = fetchedEssays
             errorMessage = nil
+            hasLoadedOnce = true
+            
         } catch {
             // 只有在没有数据时才显示错误
             if essays.isEmpty {
                 errorMessage = error.localizedDescription
             }
-            print("加载 Essays 失败: \(error)")
+            print("❌ 加载 Essays 失败: \(error)")
         }
         
         isLoading = false
         isRefreshing = false
     }
     
-    /// 刷新列表 - 使用独立 Task 防止被取消
+    /// 刷新列表 - 用于下拉刷新
     func refresh() async {
         // 取消之前的刷新任务
         refreshTask?.cancel()
@@ -77,10 +94,16 @@ class EssayViewModel: ObservableObject {
                 await MainActor.run {
                     self.essays = fetchedEssays
                     self.errorMessage = nil
+                    // 刷新成功触觉反馈
+                    HapticManager.notification(.success)
                 }
             } catch {
-                print("刷新 Essays 失败: \(error)")
+                print("❌ 刷新 Essays 失败: \(error)")
                 // 刷新失败时不显示错误，保持现有数据
+                await MainActor.run {
+                    // 刷新失败轻触觉反馈
+                    HapticManager.notification(.warning)
+                }
             }
         }
         
@@ -104,7 +127,7 @@ class EssayViewModel: ObservableObject {
             let fullEssay = try await EssayService.shared.fetchEssayContent(fileName: essay.fileName)
             selectedEssay = fullEssay
         } catch {
-            print("加载 Essay 详情失败: \(error)")
+            print("❌ 加载 Essay 详情失败: \(error)")
         }
         
         isLoadingDetail = false
@@ -115,3 +138,4 @@ class EssayViewModel: ObservableObject {
         selectedEssay = nil
     }
 }
+
