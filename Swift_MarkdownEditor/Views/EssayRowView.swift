@@ -124,7 +124,7 @@ struct EssayRowView: View {
                     Rectangle()
                         .fill(timelineColor)
                         .frame(width: lineWidth)
-                        .frame(height: geometry.size.height + 32) // 延伸到下一条的间隔
+                        .frame(height: geometry.size.height + 48) // 延伸到下一条的间隔
                         .offset(y: dotSize / 2) // 从圆点中心开始
                 }
                 
@@ -165,7 +165,7 @@ struct EssayRowView: View {
                 CachedAsyncImage(url: imageURL)
             }
         }
-        .padding(.bottom, 32) // 每篇之间的间隔
+        .padding(.bottom, 48) // 每篇之间的间隔
     }
     
     // MARK: - 元数据行
