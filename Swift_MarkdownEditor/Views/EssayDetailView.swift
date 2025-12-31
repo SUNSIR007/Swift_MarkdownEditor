@@ -8,61 +8,53 @@
 import SwiftUI
 import WebKit
 
-/// Essay 详情视图
+/// Essay 详情视图 - 纯黑极简风格
 struct EssayDetailView: View {
     let essay: Essay
-    @StateObject private var themeManager = ThemeManager.shared
     @Environment(\.dismiss) private var dismiss
+    
+    // 样式常量
+    private let metaColor = Color(hex: "#6B7280")
     
     var body: some View {
         ZStack {
-            // 背景色
-            ThemeColors.current(themeManager.currentTheme).bgBody
+            // 纯黑背景
+            Color.black
                 .ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // 日期信息
-                HStack {
-                    Image(systemName: "calendar")
+            VStack(alignment: .leading, spacing: 0) {
+                // 元数据行
+                HStack(spacing: 8) {
+                    Text("Ryuichi")
                         .font(.caption)
-                        .foregroundColor(ThemeColors.current(themeManager.currentTheme).textSecondary)
+                        .foregroundColor(metaColor)
                     
-                    Text(essay.formattedDate)
+                    Text(essay.webFormattedDate)
                         .font(.caption)
-                        .foregroundColor(ThemeColors.current(themeManager.currentTheme).textSecondary)
-                    
-                    Spacer()
+                        .foregroundColor(metaColor)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
                 
                 // Markdown 内容
-                MarkdownWebView(content: essay.content, theme: themeManager.currentTheme)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                EssayMarkdownWebView(content: essay.content)
+                    .padding(.horizontal, 4)
             }
         }
-        .navigationTitle(essay.title ?? "随笔详情")
+        .navigationTitle(essay.title ?? "随笔")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(
-            ThemeColors.current(themeManager.currentTheme).bgSurface,
-            for: .navigationBar
-        )
+        .toolbarBackground(Color.black, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 }
 
 // MARK: - Markdown WebView
 
-/// 用于渲染 Markdown 内容的 WebView
-struct MarkdownWebView: UIViewRepresentable {
+/// 用于渲染 Markdown 内容的 WebView - 纯黑风格
+struct EssayMarkdownWebView: UIViewRepresentable {
     let content: String
-    let theme: AppTheme
     
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -72,24 +64,18 @@ struct MarkdownWebView: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
-        webView.scrollView.showsVerticalScrollIndicator = true
+        webView.scrollView.showsVerticalScrollIndicator = false
         webView.scrollView.showsHorizontalScrollIndicator = false
         
         return webView
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
-        let isDark = (theme == .slate || theme == .oled)
-        let html = generateHTML(content: content, isDark: isDark)
+        let html = generateHTML(content: content)
         webView.loadHTMLString(html, baseURL: nil)
     }
     
-    private func generateHTML(content: String, isDark: Bool) -> String {
-        let bgColor = isDark ? "#1a1a1a" : "#ffffff"
-        let textColor = isDark ? "#e0e0e0" : "#333333"
-        let linkColor = isDark ? "#64b5f6" : "#1976d2"
-        let codeBackground = isDark ? "#2d2d2d" : "#f5f5f5"
-        
+    private func generateHTML(content: String) -> String {
         // 转义内容中的特殊字符
         let escapedContent = content
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -106,30 +92,34 @@ struct MarkdownWebView: UIViewRepresentable {
             <style>
                 * {
                     box-sizing: border-box;
+                    -webkit-tap-highlight-color: transparent;
                 }
                 body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
                     font-size: 16px;
-                    line-height: 1.6;
-                    color: \(textColor);
-                    background-color: \(bgColor);
+                    line-height: 1.75;
+                    color: #FFFFFF;
+                    background-color: #000000;
                     padding: 16px;
                     margin: 0;
                     word-wrap: break-word;
+                    -webkit-font-smoothing: antialiased;
                 }
                 h1, h2, h3, h4, h5, h6 {
                     margin-top: 1.5em;
                     margin-bottom: 0.5em;
                     font-weight: 600;
+                    color: #FFFFFF;
                 }
                 h1 { font-size: 1.5em; }
                 h2 { font-size: 1.3em; }
                 h3 { font-size: 1.1em; }
                 p {
                     margin: 1em 0;
+                    color: #FFFFFF;
                 }
                 a {
-                    color: \(linkColor);
+                    color: #60A5FA;
                     text-decoration: none;
                 }
                 img {
@@ -137,19 +127,22 @@ struct MarkdownWebView: UIViewRepresentable {
                     height: auto;
                     border-radius: 8px;
                     margin: 1em 0;
+                    display: block;
                 }
                 code {
                     font-family: 'SF Mono', Menlo, Monaco, monospace;
                     font-size: 0.9em;
-                    background-color: \(codeBackground);
+                    background-color: #1a1a1a;
+                    color: #E5E5E5;
                     padding: 2px 6px;
                     border-radius: 4px;
                 }
                 pre {
-                    background-color: \(codeBackground);
+                    background-color: #1a1a1a;
                     padding: 16px;
                     border-radius: 8px;
                     overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
                 }
                 pre code {
                     background: none;
@@ -158,18 +151,19 @@ struct MarkdownWebView: UIViewRepresentable {
                 blockquote {
                     margin: 1em 0;
                     padding-left: 16px;
-                    border-left: 4px solid \(linkColor);
-                    color: \(isDark ? "#a0a0a0" : "#666666");
+                    border-left: 3px solid #6B7280;
+                    color: #9CA3AF;
                 }
                 ul, ol {
                     padding-left: 24px;
+                    color: #FFFFFF;
                 }
                 li {
                     margin: 0.5em 0;
                 }
                 hr {
                     border: none;
-                    border-top: 1px solid \(isDark ? "#333" : "#eee");
+                    border-top: 1px solid #333333;
                     margin: 2em 0;
                 }
             </style>
@@ -191,7 +185,7 @@ struct MarkdownWebView: UIViewRepresentable {
             fileName: "test.md",
             title: "测试随笔",
             pubDate: Date(),
-            content: "# 这是标题\\n\\n这是正文内容，包含一些 **粗体** 和 *斜体* 文字。\\n\\n![图片](https://example.com/image.jpg)",
+            content: "# 这是标题\n\n这是正文内容，包含一些 **粗体** 和 *斜体* 文字。\n\n![图片](https://example.com/image.jpg)",
             rawContent: ""
         ))
     }

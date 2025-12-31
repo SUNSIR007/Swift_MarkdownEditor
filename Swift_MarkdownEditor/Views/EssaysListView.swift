@@ -7,40 +7,33 @@
 
 import SwiftUI
 
-/// Essays 列表视图
+/// Essays 列表视图 - 时间轴风格
 struct EssaysListView: View {
     @StateObject private var viewModel = EssayViewModel()
-    @StateObject private var themeManager = ThemeManager.shared
     @State private var selectedEssay: Essay?
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // 背景色
-                ThemeColors.current(themeManager.currentTheme).bgBody
+                // 纯黑背景
+                Color.black
                     .ignoresSafeArea()
                 
                 if viewModel.isLoading {
-                    // 加载状态
                     loadingView
                 } else if let error = viewModel.errorMessage {
-                    // 错误状态
                     errorView(message: error)
                 } else if viewModel.essays.isEmpty {
-                    // 空状态
                     emptyView
                 } else {
-                    // 列表
-                    essaysList
+                    essaysTimeline
                 }
             }
-            .navigationTitle("随笔")
+            .navigationTitle("Essays")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(
-                ThemeColors.current(themeManager.currentTheme).bgSurface,
-                for: .navigationBar
-            )
+            .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -49,7 +42,7 @@ struct EssaysListView: View {
                         }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.primaryBlue)
+                            .foregroundColor(.white)
                     }
                     .disabled(viewModel.isRefreshing)
                 }
@@ -58,25 +51,53 @@ struct EssaysListView: View {
                 EssayDetailView(essay: essay)
             }
         }
+        .preferredColorScheme(.dark)
         .task {
             await viewModel.loadEssays()
         }
     }
     
-    // MARK: - Subviews
+    // MARK: - 时间轴列表
+    
+    private var essaysTimeline: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(viewModel.essays.enumerated()), id: \.element.id) { index, essay in
+                    Button {
+                        selectedEssay = essay
+                    } label: {
+                        EssayRowView(
+                            essay: essay,
+                            isLast: index == viewModel.essays.count - 1
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+        }
+        .refreshable {
+            await viewModel.refresh()
+        }
+    }
+    
+    // MARK: - 加载状态
     
     private var loadingView: some View {
         VStack(spacing: 16) {
             ProgressView()
                 .progressViewStyle(.circular)
                 .scaleEffect(1.2)
-                .tint(.primaryBlue)
+                .tint(.white)
             
             Text("加载中...")
                 .font(.subheadline)
-                .foregroundColor(ThemeColors.current(themeManager.currentTheme).textSecondary)
+                .foregroundColor(Color(hex: "#6B7280"))
         }
     }
+    
+    // MARK: - 错误状态
     
     private func errorView(message: String) -> some View {
         VStack(spacing: 16) {
@@ -86,11 +107,11 @@ struct EssaysListView: View {
             
             Text("加载失败")
                 .font(.headline)
-                .foregroundColor(ThemeColors.current(themeManager.currentTheme).textMain)
+                .foregroundColor(.white)
             
             Text(message)
                 .font(.subheadline)
-                .foregroundColor(ThemeColors.current(themeManager.currentTheme).textSecondary)
+                .foregroundColor(Color(hex: "#6B7280"))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             
@@ -102,45 +123,28 @@ struct EssaysListView: View {
                 Label("重试", systemImage: "arrow.clockwise")
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(Color.primaryBlue)
+                    .background(Color(hex: "#6B7280"))
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
         }
     }
     
+    // MARK: - 空状态
+    
     private var emptyView: some View {
         VStack(spacing: 16) {
             Image(systemName: "doc.text")
                 .font(.system(size: 48))
-                .foregroundColor(ThemeColors.current(themeManager.currentTheme).textSecondary)
+                .foregroundColor(Color(hex: "#6B7280"))
             
             Text("暂无随笔")
                 .font(.headline)
-                .foregroundColor(ThemeColors.current(themeManager.currentTheme).textMain)
+                .foregroundColor(.white)
             
             Text("去写一些随笔吧")
                 .font(.subheadline)
-                .foregroundColor(ThemeColors.current(themeManager.currentTheme).textSecondary)
-        }
-    }
-    
-    private var essaysList: some View {
-        List {
-            ForEach(viewModel.essays) { essay in
-                Button {
-                    selectedEssay = essay
-                } label: {
-                    EssayRowView(essay: essay)
-                }
-                .listRowBackground(ThemeColors.current(themeManager.currentTheme).bgSurface)
-                .listRowSeparatorTint(Color.white.opacity(0.1))
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .refreshable {
-            await viewModel.refresh()
+                .foregroundColor(Color(hex: "#6B7280"))
         }
     }
 }
