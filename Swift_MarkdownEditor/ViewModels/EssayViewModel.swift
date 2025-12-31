@@ -31,6 +31,9 @@ class EssayViewModel: ObservableObject {
     /// 详情加载中
     @Published var isLoadingDetail = false
     
+    /// 刷新任务
+    private var refreshTask: Task<Void, Never>?
+    
     // MARK: - Public Methods
     
     /// 加载 Essays 列表
@@ -47,13 +50,42 @@ class EssayViewModel: ObservableObject {
         do {
             let fetchedEssays = try await EssayService.shared.fetchEssays(forceRefresh: forceRefresh)
             essays = fetchedEssays
+            errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            // 只有在没有数据时才显示错误
+            if essays.isEmpty {
+                errorMessage = error.localizedDescription
+            }
             print("加载 Essays 失败: \(error)")
         }
         
         isLoading = false
         isRefreshing = false
+    }
+    
+    /// 刷新列表 - 使用独立 Task 防止被取消
+    func refresh() async {
+        // 取消之前的刷新任务
+        refreshTask?.cancel()
+        
+        // 创建一个独立的 Task 来执行刷新
+        refreshTask = Task.detached { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                let fetchedEssays = try await EssayService.shared.fetchEssays(forceRefresh: true)
+                await MainActor.run {
+                    self.essays = fetchedEssays
+                    self.errorMessage = nil
+                }
+            } catch {
+                print("刷新 Essays 失败: \(error)")
+                // 刷新失败时不显示错误，保持现有数据
+            }
+        }
+        
+        // 等待任务完成（但如果被取消也没关系，后台任务会继续）
+        _ = await refreshTask?.value
     }
     
     /// 加载 Essay 详情
@@ -81,10 +113,5 @@ class EssayViewModel: ObservableObject {
     /// 清除选中状态
     func clearSelection() {
         selectedEssay = nil
-    }
-    
-    /// 刷新列表
-    func refresh() async {
-        await loadEssays(forceRefresh: true)
     }
 }
