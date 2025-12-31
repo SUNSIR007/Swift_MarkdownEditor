@@ -96,7 +96,6 @@ struct CachedAsyncImage: View {
 /// Essay 时间轴行视图 - 完整展示模式
 struct EssayRowView: View {
     let essay: Essay
-    let isFirst: Bool
     let isLast: Bool
     
     // 时间轴样式常量
@@ -107,31 +106,34 @@ struct EssayRowView: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            // 左侧时间轴装饰
+            // 左侧时间轴装饰（使用 GeometryReader 实现连续线）
             timelineDecoration
             
             // 右侧内容区
             contentArea
         }
-        .padding(.bottom, 32) // 增大每篇之间的间隔
     }
     
-    // MARK: - 时间轴装饰
+    // MARK: - 时间轴装饰（连续垂直线）
     
     private var timelineDecoration: some View {
-        VStack(spacing: 0) {
-            // 节点圆点（顶部对齐元数据行）
-            Circle()
-                .fill(timelineColor)
-                .frame(width: dotSize, height: dotSize)
-            
-            // 垂直连接线（非最后一条时显示）
-            if !isLast {
-                Rectangle()
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                // 垂直连接线 - 从圆点中心一直延伸到底部（非最后一条时）
+                if !isLast {
+                    Rectangle()
+                        .fill(timelineColor)
+                        .frame(width: lineWidth)
+                        .frame(height: geometry.size.height + 32) // 延伸到下一条的间隔
+                        .offset(y: dotSize / 2) // 从圆点中心开始
+                }
+                
+                // 节点圆点
+                Circle()
                     .fill(timelineColor)
-                    .frame(width: lineWidth)
-                    .frame(maxHeight: .infinity)
+                    .frame(width: dotSize, height: dotSize)
             }
+            .frame(width: timelineWidth)
         }
         .frame(width: timelineWidth)
     }
@@ -140,9 +142,8 @@ struct EssayRowView: View {
     
     private var contentArea: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // 元数据行（作者 + 日期）- 与圆点顶部对齐
+            // 元数据行（作者 + 日期）
             metadataRow
-                .offset(y: -2) // 微调使文字基线与圆点中心对齐
             
             // 标题（如果有）
             if let title = essay.title, !title.isEmpty {
@@ -164,6 +165,7 @@ struct EssayRowView: View {
                 CachedAsyncImage(url: imageURL)
             }
         }
+        .padding(.bottom, 32) // 每篇之间的间隔
     }
     
     // MARK: - 元数据行
@@ -218,7 +220,6 @@ extension Essay {
                     content: "![image](https://cdn.jsdelivr.net/gh/SUNSIR007/picx-images-hosting@master/images/2025/12/img.jpg)",
                     rawContent: ""
                 ),
-                isFirst: true,
                 isLast: false
             )
             
@@ -230,7 +231,6 @@ extension Essay {
                     content: "音乐鉴赏测试完了，终于可以静下心来好好听这些古典乐了",
                     rawContent: ""
                 ),
-                isFirst: false,
                 isLast: true
             )
         }

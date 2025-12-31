@@ -33,19 +33,6 @@ struct EssaysListView: View {
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            await viewModel.refresh()
-                        }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.white)
-                    }
-                    .disabled(viewModel.isRefreshing)
-                }
-            }
         }
         .preferredColorScheme(.dark)
         .task {
@@ -61,7 +48,6 @@ struct EssaysListView: View {
                 ForEach(Array(viewModel.essays.enumerated()), id: \.element.id) { index, essay in
                     EssayRowView(
                         essay: essay,
-                        isFirst: index == 0,
                         isLast: index == viewModel.essays.count - 1
                     )
                 }
